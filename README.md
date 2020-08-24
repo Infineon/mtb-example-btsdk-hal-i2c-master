@@ -1,0 +1,1 @@
+# mtb-example-btsdk-hal-i2c-master
