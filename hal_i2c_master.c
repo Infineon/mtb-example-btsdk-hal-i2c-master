@@ -39,6 +39,11 @@
 #include "wiced_rtos.h"
 #include "wiced_hal_i2c.h"
 #include "wiced_bt_trace.h"
+#include "cycfg_pins.h"
+
+#ifdef USE_LIGHT_SENSOR_MAX44009
+#include "max_44009.h"
+#endif
 
 /*****************************    Constants   *****************************/
 /* Useful macros for thread priorities */
@@ -166,6 +171,34 @@ i2c_master_management_callback(wiced_bt_management_evt_t event,
 
  @return  none
  */
+#ifdef USE_LIGHT_SENSOR_MAX44009
+void sensor_thread(uint32_t arg)
+{
+    max44009_user_set_t ambient_light_config;
+    memset(&ambient_light_config, 0, sizeof(max44009_user_set_t));
+
+    ambient_light_config.scl_pin = I2C_SCL;
+    ambient_light_config.sda_pin = I2C_SDA;
+    ambient_light_config.irq_pin = WICED_HAL_GPIO_PIN_UNUSED;
+    ambient_light_config.irq_enable_reg_value = 0;
+    ambient_light_config.cfg_reg_value = 0;
+    ambient_light_config.upper_threshold_reg_value = 0;
+    ambient_light_config.low_threshold_reg_value = 0;
+    ambient_light_config.threshold_timer_reg_value = 0;
+    max44009_init(&ambient_light_config, NULL, NULL);
+
+    while(1)
+    {
+        /* Read the sensor data */
+        WICED_BT_TRACE("Ambient light level = %6d\n", max44009_read_ambient_light());
+
+        /* Send the thread to sleep for a period of time */
+        wiced_rtos_delay_milliseconds(THREAD_DELAY_IN_MS, ALLOW_THREAD_TO_SLEEP);
+    }
+}
+
+#else
+
 void sensor_thread(uint32_t arg)
 {
 	/* Address of first Data register, Total of six registers */
@@ -199,3 +232,4 @@ void sensor_thread(uint32_t arg)
                                        ALLOW_THREAD_TO_SLEEP);
     }
 }
+#endif
