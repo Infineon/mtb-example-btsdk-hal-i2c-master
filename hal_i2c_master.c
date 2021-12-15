@@ -36,10 +36,17 @@
 #include "wiced_platform.h"
 #include "sparcommon.h"
 #include "wiced_bt_stack.h"
-#include "wiced_rtos.h"
 #include "wiced_hal_i2c.h"
 #include "wiced_bt_trace.h"
+#if defined(CYW20706A2) || defined(CYW43012C0)
+#include "wiced_timer.h"
+#include "wiced_hal_puart.h"
+#else
+#include "wiced_rtos.h"
+#endif
+#if !defined(CYW20706A2) && (!defined(CYW43012C0) || (defined(USE_DESIGN_MODUS) && USE_DESIGN_MODUS))
 #include "cycfg_pins.h"
+#endif
 
 #ifdef USE_LIGHT_SENSOR_MAX44009
 #include "max_44009.h"
@@ -63,8 +70,6 @@
 #define ACCEL_CONFIG_VAL  (0x40)
 
 /*****************************    Variables   *****************************/
-wiced_thread_t * sensor_thread_handle;
-
 /* Structure to hold sensor data read from I2C */
 struct
 {
@@ -78,6 +83,18 @@ static wiced_result_t
 i2c_master_management_callback(wiced_bt_management_evt_t event,
                                wiced_bt_management_evt_data_t *p_event_data);
 void sensor_thread(uint32_t arg);
+
+#if defined(CYW20706A2) || defined(CYW43012C0)
+void init_light_sensor();
+void sensor_timer_callback(uint32_t cb_params);
+wiced_timer_t msec_timer;
+#define I2C_SCL 0
+#define I2C_SDA 0
+#else
+
+wiced_thread_t * sensor_thread_handle;
+
+#endif
 
 /******************************************************************************
  *                              Function Definitions
@@ -102,7 +119,20 @@ void application_start(void)
     wiced_result_t result = WICED_BT_SUCCESS;
 
     /* WICED_BT_TRACE_ENABLE*/
+#if defined(CYW43012C0)
+    wiced_set_debug_uart(WICED_ROUTE_DEBUG_TO_DBG_UART);
+#else // CYW43012C0
     wiced_set_debug_uart(WICED_ROUTE_DEBUG_TO_PUART);
+#ifdef CYW20706A2
+    wiced_hal_puart_init();
+    // Please see the User Documentation to reference the valid pins.
+    // CTS and RTS are defined non-zero #if PUART_RTS_CTS_FLOW, see wiced_platform.h
+    if(!wiced_hal_puart_select_uart_pads( WICED_PUART_RXD, WICED_PUART_TXD, WICED_PUART_CTS, WICED_PUART_RTS))
+    {
+        WICED_BT_TRACE("wiced_hal_puart_select_uart_pads failed!!\n");
+    }
+#endif
+#endif
     WICED_BT_TRACE("************Starting I2C Master Application**********\n\r");
     /* Register BT stack callback */
     result = wiced_bt_stack_init(i2c_master_management_callback, NULL, NULL);
@@ -136,6 +166,13 @@ i2c_master_management_callback(wiced_bt_management_evt_t event,
         case BTM_ENABLED_EVT:
             /* Start a thread to read motion sensor values
              * and Get memory for the thread handle */
+
+#if defined(CYW20706A2) || defined(CYW43012C0)
+            // use a timer for 20706 as threads
+            wiced_init_timer( &msec_timer, sensor_timer_callback, 0, WICED_MILLI_SECONDS_TIMER );
+            wiced_start_timer( &msec_timer, THREAD_DELAY_IN_MS );
+            init_light_sensor();
+#else
             sensor_thread_handle = wiced_rtos_create_thread();
             if(NULL != sensor_thread_handle)
             {
@@ -152,6 +189,7 @@ i2c_master_management_callback(wiced_bt_management_evt_t event,
                 WICED_BT_TRACE("failed to create thread!!\n\r");
                 result = WICED_ERROR;
             }
+#endif
             break;
 
         default:
@@ -172,7 +210,7 @@ i2c_master_management_callback(wiced_bt_management_evt_t event,
  @return  none
  */
 #ifdef USE_LIGHT_SENSOR_MAX44009
-void sensor_thread(uint32_t arg)
+void init_light_sensor()
 {
     max44009_user_set_t ambient_light_config;
     memset(&ambient_light_config, 0, sizeof(max44009_user_set_t));
@@ -186,7 +224,22 @@ void sensor_thread(uint32_t arg)
     ambient_light_config.low_threshold_reg_value = 0;
     ambient_light_config.threshold_timer_reg_value = 0;
     max44009_init(&ambient_light_config, NULL, NULL);
+    WICED_BT_TRACE("init_light_sensor done\n");
+}
 
+#if defined(CYW20706A2) || defined(CYW43012C0)
+void sensor_timer_callback(uint32_t arg)
+{
+        /* Read the sensor data */
+        WICED_BT_TRACE("Ambient light level = %6d\n", max44009_read_ambient_light());
+        /* Send the thread to sleep for a period of time */
+        wiced_start_timer( &msec_timer, THREAD_DELAY_IN_MS );
+}
+
+#else
+void sensor_thread(uint32_t arg)
+{
+    init_light_sensor();
     while(1)
     {
         /* Read the sensor data */
@@ -196,7 +249,7 @@ void sensor_thread(uint32_t arg)
         wiced_rtos_delay_milliseconds(THREAD_DELAY_IN_MS, ALLOW_THREAD_TO_SLEEP);
     }
 }
-
+#endif
 #else
 
 void sensor_thread(uint32_t arg)
