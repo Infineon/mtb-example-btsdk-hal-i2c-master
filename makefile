@@ -1,5 +1,5 @@
 #
-# Copyright 2016-2021, Cypress Semiconductor Corporation (an Infineon company) or
+# Copyright 2016-2022, Cypress Semiconductor Corporation (an Infineon company) or
 # an affiliate of Cypress Semiconductor Corporation.  All rights reserved.
 #
 # This software, including source code, documentation and related
@@ -52,7 +52,10 @@ SUPPORTED_TARGETS = \
   CYW920835M2EVB-01 \
   CYBLE-343072-EVAL-M2B \
   CYBLE-333074-EVAL-M2B \
-  CYW920721M2EVB-03
+  CYW943012BTEVK-01 \
+  CYW955572BTEVK-01 \
+  CYW920721M2EVB-03 \
+  CYW920820M2EVB-01
 
 #
 # Advanced Configuration
@@ -89,21 +92,37 @@ endif
 CY_APP_DEFINES+=\
     -DWICED_BT_TRACE_ENABLE \
 
-ifeq ($(TARGET),CYW920706WCDEVAL)
-USE_256K_SECTOR_SIZE ?= 0
-ifeq ($(USE_256K_SECTOR_SIZE),1)
-CY_APP_DEFINES += -DUSE_256K_SECTOR_SIZE
-endif
-endif # TARGET
-
 #
 # Components (middleware libraries)
 #
 COMPONENTS +=bsp_design_modus
 
-ifneq ($(filter CYW943012BTEVK-01 CYW920721M2EVK-02 CYW920721M2EVB-03 CYW920835M2EVB-01 CYBLE-343072-EVAL-M2B CYBLE-333074-EVAL-M2B,$(TARGET)),)
-COMPONENTS +=ambient_light_sensor_lib
-CY_APP_DEFINES+=-DUSE_LIGHT_SENSOR_MAX44009
+#
+# list of any TARGET M2 base boards that are Rev 6 or Rev 4
+#
+M2_BASE_BOARD_REV4:= CYW920835M2EVB-01 CYW943012BTEVK-01 CYW955572BTEVK-01 CYW920721M2EVB-03
+M2_BASE_BOARD_REV6:= CYW920820M2EVB-01
+
+#
+M2_BOARD_REV_MAJOR:=$(if $(filter $(M2_BASE_BOARD_REV4),$(TARGET)),4,$(if $(filter $(M2_BASE_BOARD_REV6),$(TARGET)),6,0))
+
+# choose appropriate i2c device interface component for kit
+ifeq ($(M2_BOARD_REV_MAJOR),4)
+  COMPONENTS +=ambient_light_sensor_lib
+  COMPONENTS +=ambient_light_sensor_max44009
+  CY_APP_DEFINES+=-DUSE_LIGHT_SENSOR_MAX44009
+  $(info USE_LIGHT_SENSOR_MAX44009)
+else
+  ifeq ($(M2_BOARD_REV_MAJOR),6)
+    COMPONENTS +=ambient_light_sensor_opt3002_lib
+    COMPONENTS +=ambient_light_sensor_opt3002
+    CY_APP_DEFINES+=-DUSE_LIGHT_SENSOR_OPT3002
+    $(info USE_LIGHT_SENSOR_OPT3002)
+  else
+    COMPONENTS +=nine_axis_motion_sensor
+    CY_APP_DEFINES+=-DUSE_MOTION_SENSOR
+    $(info USE_MOTION_SENSOR)
+  endif
 endif
 
 ################################################################################

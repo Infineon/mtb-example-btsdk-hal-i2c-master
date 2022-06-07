@@ -34,39 +34,25 @@
 
 #include "wiced.h"
 #include "wiced_platform.h"
-#include "sparcommon.h"
-#include "wiced_bt_stack.h"
 #include "wiced_hal_i2c.h"
 #include "wiced_bt_trace.h"
-#include "wiced_timer.h"
-#if defined(CYW20706A2) || defined(CYW43012C0)
+#if defined(CYW20706A2)
 #include "wiced_hal_puart.h"
 #endif
-#if !defined(CYW20706A2)
+#if defined(CYW20706A2)
+#define I2C_SCL 0
+#define I2C_SDA 0
+#else
 #include "cycfg_pins.h"
 #endif
-#ifdef BTSTACK_VER
-#include "wiced_memory.h"
-#include "bt_types.h"
-#endif
+
+#include "opt3002.h"
 
 /*****************************    Constants   *****************************/
-/* Thread will delay so that sensor values are read every 1s */
-#define THREAD_DELAY_IN_MS          (1000)
-#ifdef BTSTACK_VER
-#define BT_STACK_HEAP_SIZE          1024 * 6
-wiced_bt_heap_t *p_default_heap = NULL;
-#endif
 
 /*****************************    Variables   *****************************/
 
 /*****************************    Function Prototypes   *******************/
-static wiced_result_t
-i2c_master_management_callback(wiced_bt_management_evt_t event,
-                               wiced_bt_management_evt_data_t *p_event_data);
-void sensor_timer_callback(TIMER_PARAM_TYPE arg);
-wiced_timer_t msec_timer;
-
 void sensor_init();
 void sensor_read();
 
@@ -74,62 +60,25 @@ void sensor_read();
  *                              Function Definitions
  ******************************************************************************/
 
-/*
- Function name:
- application_start
-
- Function Description:
- @brief    Starting point of your application. Entry point to the application.
-           Set device configuration and start BT stack initialization.
-           The actual application initialization will happen when stack reports
-           that BT device is ready.
-
- @param void
-
- @return void
- */
-void application_start(void)
+void sensor_init()
 {
-    wiced_result_t result = WICED_BT_SUCCESS;
+    opt3002_user_set_t ambient_light_config;
 
-    /* WICED_BT_TRACE_ENABLE*/
-    wiced_set_debug_uart(WICED_ROUTE_DEBUG_TO_PUART);
-#ifdef CYW20706A2
-    wiced_hal_puart_init();
-    // Please see the User Documentation to reference the valid pins.
-    // CTS and RTS are defined non-zero #if PUART_RTS_CTS_FLOW, see wiced_platform.h
-    if(!wiced_hal_puart_select_uart_pads( WICED_PUART_RXD, WICED_PUART_TXD, WICED_PUART_CTS, WICED_PUART_RTS))
-    {
-        WICED_BT_TRACE("wiced_hal_puart_select_uart_pads failed!!\n");
-    }
-#endif
-#ifdef BTSTACK_VER
-    /* Create default heap */
-    p_default_heap = wiced_bt_create_heap("default_heap", NULL, BT_STACK_HEAP_SIZE, NULL, WICED_TRUE);
-#endif
-    WICED_BT_TRACE("************Starting I2C Master Application**********\n\r");
-    // use a timer for periodic i2c device reads
-    wiced_init_timer( &msec_timer, sensor_timer_callback, 0, WICED_MILLI_SECONDS_TIMER );
-    wiced_start_timer( &msec_timer, THREAD_DELAY_IN_MS );
-    sensor_init();
+    memset(&ambient_light_config, 0, sizeof(opt3002_user_set_t));
+
+    ambient_light_config.scl_pin = I2C_SCL;
+    ambient_light_config.sda_pin = I2C_SDA;
+    ambient_light_config.irq_pin = WICED_HAL_GPIO_PIN_UNUSED;
+    ambient_light_config.irq_enable_reg_value = 0;
+    ambient_light_config.cfg_reg_value = 0;
+    ambient_light_config.upper_threshold_reg_value = 0;
+    ambient_light_config.low_threshold_reg_value = 0;
+    ambient_light_config.threshold_timer_reg_value = 0;
+    opt3002_init(&ambient_light_config, NULL, NULL);
+    WICED_BT_TRACE("init_light_sensor done\n");
 }
 
-/*
- Function Name:
- sensor_timer_callback
-
- Function Description:
- @brief  data is read from sensor periodically
-
- @param  arg           unused
-
- @return  none
- */
-void sensor_timer_callback(TIMER_PARAM_TYPE arg)
+void sensor_read()
 {
-    /* Read the sensor data */
-    sensor_read();
-
-    /* Send the thread to sleep for a period of time */
-    wiced_start_timer( &msec_timer, THREAD_DELAY_IN_MS );
+    WICED_BT_TRACE("Ambient light level = %6d\n", opt3002_read_ambient_light());
 }
