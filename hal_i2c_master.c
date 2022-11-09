@@ -80,9 +80,9 @@ void sensor_read();
 
  Function Description:
  @brief    Starting point of your application. Entry point to the application.
-           Set device configuration and start BT stack initialization.
+           Set device configuration and start Bluetooth stack initialization.
            The actual application initialization will happen when stack reports
-           that BT device is ready.
+           that Bluetooth device is ready.
 
  @param void
 
