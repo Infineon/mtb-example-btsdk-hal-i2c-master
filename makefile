@@ -1,5 +1,5 @@
 #
-# Copyright 2016-2022, Cypress Semiconductor Corporation (an Infineon company) or
+# Copyright 2016-2023, Cypress Semiconductor Corporation (an Infineon company) or
 # an affiliate of Cypress Semiconductor Corporation.  All rights reserved.
 #
 # This software, including source code, documentation and related
@@ -102,7 +102,7 @@ COMPONENTS +=bsp_design_modus
 #
 M2_BASE_BOARD_REV4:= CYW920835M2EVB-01 CYW943012BTEVK-01 CYW955572BTEVK-01 CYW920721M2EVB-03
 M2_BASE_BOARD_REV6:= CYW920820M2EVB-01
-M2_BASE_BOARD2_REV2:= CYW920819M2EVB-01
+M2_BASE_BOARD2_REV2:= CYW920819M2EVB-01 CYW989820M2EVB-01
 
 # choose appropriate i2c device interface component for kit
 ifeq ($(filter $(M2_BASE_BOARD_REV4),$(TARGET)),$(TARGET))
